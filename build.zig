@@ -3,26 +3,84 @@ const std = @import("std");
 pub fn build(b: *std.Build) void {
     const target = b.standardTargetOptions(.{});
     const optimize = b.standardOptimizeOption(.{});
-
+    const t = target.result;
     const config_h = b.addConfigHeader(.{
-        .style = .blank,
+        .style = .{
+            .autoconf = .{ .path = "include/config.h.in" },
+        },
         .include_path = "config.h",
     }, .{
-        .HAVE_ERROR_H = true,
-        .HAVE_DECL_RAWMEMCHR = true,
-        .HAVE_DECL_MEMRCHR = true,
-        .HAVE_MREMAP = true,
-        .HAVE_DECL_POWEROF2 = true,
+        .CHECK_UNDEFINED = false,
+        .DEFAULT_AR_DETERMINISTIC = true,
+        .DUMMY_LIBDEBUGINFOD = null,
+        .ENABLE_DEBUGINFOD = false,
+        .ENABLE_LIBDEBUGINFOD = false,
+        .ENABLE_NLS = true,
+        .HAVE_CFLOCALECOPYPREFERREDLANGUAGES = null,
+        .HAVE_CFPREFERENCESCOPYAPPVALUE = null,
+        .HAVE_CXX11 = true,
+        .HAVE_DCGETTEXT = true,
         .HAVE_DECL_MEMPCPY = true,
+        .HAVE_DECL_MEMRCHR = true,
+        .HAVE_DECL_POWEROF2 = true,
+        .HAVE_DECL_RAWMEMCHR = t.isGnu(),
         .HAVE_DECL_REALLOCARRAY = true,
-        .internal_function = null,
-        .attribute_hidden = null,
+        .HAVE_DECL_STRERROR_R = true,
+        .HAVE_ERROR_H = null,
+        .HAVE_ERR_H = true,
+        .HAVE_EXECINFO_H = true,
+        .HAVE_FALLTHROUGH = true,
+        .HAVE_GCC_STRUCT = true,
+        .HAVE_GETRLIMIT = true,
+        .HAVE_GETTEXT = true,
+        .HAVE_ICONV = true,
+        .HAVE_INTTYPES_H = true,
+        .HAVE_MREMAP = true,
+        .HAVE_PROCESS_VM_READV = true,
+        .HAVE_PTHREAD_SETNAME_NP = true,
+        .HAVE_SCHED_GETAFFINITY = true,
+        .HAVE_SCHED_H = true,
+        .HAVE_STDATOMIC_H = true,
+        .HAVE_STDINT_H = true,
+        .HAVE_STDIO_H = true,
+        .HAVE_STDLIB_H = true,
+        .HAVE_STRERROR_R = true,
+        .HAVE_STRINGS_H = true,
+        .HAVE_STRING_H = true,
+        .HAVE_SYS_RESOURCE_H = true,
+        .HAVE_SYS_STAT_H = true,
+        .HAVE_SYS_TYPES_H = true,
+        .HAVE_SYS_USER_REGS = true,
+        .HAVE_UNISTD_H = true,
+        .HAVE_VISIBILITY = true,
+        .PACKAGE = "elfutils",
+        .PACKAGE_BUGREPORT = "https://sourceware.org/bugzilla",
+        .PACKAGE_NAME = "libelf",
+        .PACKAGE_STRING = "libelf 0.189",
+        .PACKAGE_TARNAME = "libelf",
+        .PACKAGE_URL = "http://elfutils.org/",
+        .PACKAGE_VERSION = "0.189",
+        .SIZEOF_LONG = t.c_type_byte_size(.long),
+        .STDC_HEADERS = true,
+        .STRERROR_R_CHAR_P = true,
+        .USE_BZLIB = false,
+        .USE_DEMANGLE = false,
+        .USE_LOCKS = null,
+        .USE_LZMA = false,
+        .USE_ZLIB = false,
+        .USE_ZSTD = false,
+        .USE_ZSTD_COMPRESS = false,
+        .VERSION = "0.189",
+        .YYTEXT_POINTER = true,
+        ._FILE_OFFSET_BITS = null,
+        ._LARGE_FILES = null,
     });
     const lib = b.addStaticLibrary(.{
         .name = "libelf",
         .target = target,
         .optimize = optimize,
     });
+    lib.defineCMacro("_GNU_SOURCE", null);
     lib.root_module.link_libc = true;
     lib.defineCMacro("HAVE_CONFIG_H", "");
     lib.addConfigHeader(config_h);
@@ -30,6 +88,11 @@ pub fn build(b: *std.Build) void {
         .files = &elf_src,
         .flags = &.{},
     });
+    lib.addCSourceFiles(.{
+        .files = &libeu_src,
+        .flags = &.{},
+    });
+    lib.addIncludePath(.{ .path = "lib" });
     lib.addIncludePath(.{ .path = "include" });
     lib.installHeadersDirectoryOptions(.{
         .source_dir = .{ .path = "include" },
@@ -40,23 +103,6 @@ pub fn build(b: *std.Build) void {
     lib.installConfigHeader(config_h, .{});
     b.installArtifact(lib);
 
-    const exe = b.addExecutable(.{
-        .name = "libelf",
-        .root_source_file = .{ .path = "src/main.zig" },
-        .target = target,
-        .optimize = optimize,
-    });
-
-    b.installArtifact(exe);
-
-    const run_cmd = b.addRunArtifact(exe);
-    run_cmd.step.dependOn(b.getInstallStep());
-    if (b.args) |args| {
-        run_cmd.addArgs(args);
-    }
-
-    const run_step = b.step("run", "Run the app");
-    run_step.dependOn(&run_cmd.step);
     const lib_unit_tests = b.addTest(.{
         .root_source_file = .{ .path = "src/root.zig" },
         .target = target,
@@ -64,17 +110,8 @@ pub fn build(b: *std.Build) void {
     });
 
     const run_lib_unit_tests = b.addRunArtifact(lib_unit_tests);
-
-    const exe_unit_tests = b.addTest(.{
-        .root_source_file = .{ .path = "src/main.zig" },
-        .target = target,
-        .optimize = optimize,
-    });
-
-    const run_exe_unit_tests = b.addRunArtifact(exe_unit_tests);
     const test_step = b.step("test", "Run unit tests");
     test_step.dependOn(&run_lib_unit_tests.step);
-    test_step.dependOn(&run_exe_unit_tests.step);
 }
 
 const elf_headers = [_][]const u8{
@@ -198,4 +235,19 @@ const elf_src = [_][]const u8{
     "src/libelf_crc32.c",
     "src/libelf_next_prime.c",
     "src/nlist.c",
+};
+
+const libeu_src = [_][]const u8{
+    "lib/xasprintf.c",
+    "lib/xstrdup.c",
+    "lib/xstrndup.c",
+    "lib/xmalloc.c",
+    "lib/next_prime.c",
+    "lib/crc32.c",
+    "lib/crc32_file.c",
+    //"lib/color.c",
+    "lib/error.c",
+    //"lib/printversion.c",
+    //"lib/dynamicsizehash.c",
+    //"lib/dynamicsizehash_concurrent.c",
 };
