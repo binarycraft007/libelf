@@ -76,7 +76,7 @@ pub fn build(b: *std.Build) void {
         ._LARGE_FILES = null,
     });
     const lib = b.addStaticLibrary(.{
-        .name = "libelf",
+        .name = "elf",
         .target = target,
         .optimize = optimize,
     });
@@ -97,7 +97,7 @@ pub fn build(b: *std.Build) void {
     lib.installHeadersDirectoryOptions(.{
         .source_dir = .{ .path = "include" },
         .install_dir = .header,
-        .install_subdir = "elf",
+        .install_subdir = "",
         .include_extensions = &elf_headers,
     });
     lib.installConfigHeader(config_h, .{});
@@ -115,6 +115,7 @@ pub fn build(b: *std.Build) void {
 }
 
 const elf_headers = [_][]const u8{
+    "elf.h",
     "libelf.h",
     "gelf.h",
     "nlist.h",
