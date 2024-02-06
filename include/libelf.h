@@ -190,6 +190,13 @@ enum
 #define ELF_F_PERMISSIVE	ELF_F_PERMISSIVE
 };
 
+/* Flags for elf_compress[_gnu].  */
+enum
+{
+  ELF_CHF_FORCE = 0x1
+#define ELF_CHF_FORCE ELF_CHF_FORCE
+};
+
 /* Identification values for recognized object files.  */
 typedef enum
 {
@@ -345,6 +352,62 @@ extern Elf64_Shdr *elf64_getshdr (Elf_Scn *__scn);
    compressed or an error occurred.  */
 extern Elf32_Chdr *elf32_getchdr (Elf_Scn *__scn);
 extern Elf64_Chdr *elf64_getchdr (Elf_Scn *__scn);
+
+/* Compress or decompress the data of a section and adjust the section
+   header.
+
+   elf_compress works by setting or clearing the SHF_COMPRESS flag
+   from the section Shdr and will encode or decode a Elf32_Chdr or
+   Elf64_Chdr at the start of the section data.  elf_compress_gnu will
+   encode or decode any section, but is traditionally only used for
+   sections that have a name starting with ".debug" when
+   uncompressed or ".zdebug" when compressed and stores just the
+   uncompressed size.  The GNU compression method is deprecated and
+   should only be used for legacy support.
+
+   elf_compress takes a compression type that should be either zero to
+   decompress or an ELFCOMPRESS algorithm to use for compression.
+   Currently ELFCOMPRESS_ZLIB and ELFCOMPRESS_ZSTD are supported.
+   elf_compress_gnu will compress in the traditional GNU compression
+   format when compress is one and decompress the section data when
+   compress is zero.
+
+   The FLAGS argument can be zero or ELF_CHF_FORCE.  If FLAGS contains
+   ELF_CHF_FORCE then it will always compress the section, even if
+   that would not reduce the size of the data section (including the
+   header).  Otherwise elf_compress and elf_compress_gnu will compress
+   the section only if the total data size is reduced.
+
+   On successful compression or decompression the function returns
+   one.  If (not forced) compression is requested and the data section
+   would not actually reduce in size, the section is not actually
+   compressed and zero is returned.  Otherwise -1 is returned and
+   elf_errno is set.
+
+   It is an error to request compression for a section that already
+   has SHF_COMPRESSED set, or (for elf_compress) to request
+   decompression for an section that doesn't have SHF_COMPRESSED set.
+   If a section has SHF_COMPRESSED set then calling elf_compress_gnu
+   will result in an error.  The section has to be decompressed first
+   using elf_compress.  Calling elf_compress on a section compressed
+   with elf_compress_gnu is fine, but probably useless.
+
+   It is always an error to call these functions on SHT_NOBITS
+   sections or if the section has the SHF_ALLOC flag set.
+   elf_compress_gnu will not check whether the section name starts
+   with ".debug" or .zdebug".  It is the responsibility of the caller
+   to make sure the deprecated GNU compression method is only called
+   on correctly named sections (and to change the name of the section
+   when using elf_compress_gnu).
+
+   All previous returned Shdrs and Elf_Data buffers are invalidated by
+   this call and should no longer be accessed.
+
+   Note that although this changes the header and data returned it
+   doesn't mark the section as dirty.  To keep the changes when
+   calling elf_update the section has to be flagged ELF_F_DIRTY.  */
+extern int elf_compress (Elf_Scn *scn, int type, unsigned int flags);
+extern int elf_compress_gnu (Elf_Scn *scn, int compress, unsigned int flags);
 
 /* Set or clear flags for ELF file.  */
 extern unsigned int elf_flagelf (Elf *__elf, Elf_Cmd __cmd,

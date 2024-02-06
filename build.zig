@@ -100,6 +100,10 @@ pub fn build(b: *std.Build) void {
         .install_subdir = "",
         .include_extensions = &elf_headers,
     });
+    lib.linkLibrary(b.dependency("zlib", .{
+        .target = target,
+        .optimize = optimize,
+    }).artifact("z"));
     lib.installConfigHeader(config_h, .{});
     b.installArtifact(lib);
 
@@ -188,6 +192,8 @@ const elf_src = [_][]const u8{
     "src/elf_strptr.c",
     "src/elf_update.c",
     "src/elf_version.c",
+    "src/elf_compress.c",
+    "src/elf_compress_gnu.c",
     "src/gelf_checksum.c",
     "src/gelf_fsize.c",
     "src/gelf_getauxv.c",
